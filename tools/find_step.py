@@ -20,18 +20,50 @@ STEPS_DIR = "features/steps"
 FEATURES_DIR = "features"
 
 def normalize_gherkin(s: str) -> str:
+    """
+    Normalize a Gherkin line from a .feature file by:
+      - removing leading keyword (Feature/Scenario/Given/When/Then/And/But)
+      - replacing quoted strings with "{}"
+      - replacing numeric tokens (integers/floats) with "{}"
+      - collapsing extra whitespace
+    This makes it comparable to normalized patterns extracted from step defs.
+    """
     s = s.strip()
     s = re.sub(r'^(Feature|Scenario|Given|When|Then|And|But)\s+', '', s, flags=re.I)
+    # replace quoted strings with placeholder
     s = re.sub(r'"[^"]*"', '"{}"', s)
+    # replace numbers (integers and floats) with placeholder
+    s = re.sub(r'\b\d+(\.\d+)?\b', '{}', s)
+    # optional: replace UUIDs or long hex tokens if you want (commented)
+    # s = re.sub(r'\b[0-9a-fA-F-]{8,}\b', '{}', s)
+    # collapse whitespace
+    s = re.sub(r'\s+', ' ', s)
     return s.strip()
 
 def normalize_pattern(pat: str) -> str:
+    """
+    Normalize a pattern from step decorator:
+      - remove r/R/u prefixes and surrounding quotes
+      - replace {param} placeholders with {}
+      - replace any quoted string inside pattern with {}
+      - replace numeric regex groups with {}
+    """
     pat = pat.strip()
-    pat = re.sub(r'^[ruRU]\s*', '', pat)  # remove r' or u' prefix
+    # strip leading r' or u' etc.
+    pat = re.sub(r'^[ruRU]\s*', '', pat)
+    # remove surrounding quotes if present
     if (pat.startswith('"') and pat.endswith('"')) or (pat.startswith("'") and pat.endswith("'")):
         pat = pat[1:-1]
+    # replace {param} with {}
     pat = re.sub(r'\{[^}]+\}', '{}', pat)
+    # replace explicit regex numeric groups like (\d+), (\d+\.\d+), etc. with {}
+    pat = re.sub(r'\(\\?d\+\)', '{}', pat)           # (\d+)
+    pat = re.sub(r'\(\\?d\+\.\d\+\)', '{}', pat)     # (\d+\.\d+)
+    # replace quoted pieces with {}
     pat = re.sub(r'"[^"]*"', '"{}"', pat)
+    pat = re.sub(r"\'[^\']*\'", "'{}'", pat)
+    # collapse whitespace
+    pat = re.sub(r'\s+', ' ', pat)
     return pat.strip()
 
 def build_index():

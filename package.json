@@ -2,10 +2,10 @@
   "name": "behave-gherkin-vsc-support",
   "displayName": "Behave Gherkin VSC Support",
   "description": "VS Code support for Behave/Gherkin: navigate to step defs, highlight undefined steps, and create step skeletons.",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "publisher": "JagadeeshKumarReddyObulareddy",
   "engines": {
-    "vscode": "^1.107.0"
+    "vscode": "^1.96.0"
   },
   "categories": [
     "Other"
@@ -38,7 +38,22 @@
           "feature"
         ]
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Behave Gherkin",
+      "properties": {
+        "behaveGherkin.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Path to Python executable used to run the bundled or workspace find_step.py CLI (e.g. python3, python, /usr/bin/python3, /path/to/venv/bin/python)."
+        },
+        "behaveGherkin.findStepPath": {
+          "type": "string",
+          "default": "tools/find_step.py",
+          "description": "Relative path to the find_step.py CLI inside the workspace. If the file is not present at this path, the extension will attempt to run a bundled CLI."
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
@@ -46,12 +61,15 @@
   },
   "devDependencies": {
     "@types/node": "^18.19.130",
-    "@types/vscode": "^1.107.0",
+    "@types/vscode": "^1.96.0",
     "typescript": "^5.9.3"
   },
   "repository": {
-  "type": "git",
-  "url": "https://github.com/Jagadeesh-at-GIT/behave-gherkin-vsc-support.git"
-}
-
+    "type": "git",
+    "url": "https://github.com/Jagadeesh-at-GIT/behave-gherkin-vsc-support.git"
+  },
+  "files": [
+    "out/",
+    "tools/find_step.py"
+  ]
 }

@@ -2,11 +2,12 @@
 import * as vscode from "vscode";
 import * as cp from "child_process";
 import * as path from "path";
+import * as fs from "fs";
 import { promisify } from "util";
 
 const execFile = promisify(cp.execFile);
 
-const PY_CLI_REL = path.posix.join("tools", "find_step.py");
+const DEFAULT_PY_CLI_REL = path.posix.join("tools", "find_step.py");
 const KEYWORDS = ["Feature", "Scenario", "Given", "When", "Then", "And", "But"];
 const GHERKIN_IDS = ["feature", "gherkin"];
 
@@ -18,7 +19,19 @@ type StepDef = {
   keyword?: string;
 };
 
-async function findPython(): Promise<string | null> {
+async function findPython(configuredPath?: string): Promise<string | null> {
+  // If the user configured a pythonPath, prefer that
+  if (configuredPath && configuredPath.trim().length > 0) {
+    // quick probe
+    try {
+      await execFile(configuredPath, ["--version"], { timeout: 2000 });
+      return configuredPath;
+    } catch {
+      // fall through to probing PATH
+    }
+  }
+
+  // probe common names on PATH
   for (const c of ["python3", "python"]) {
     try {
       await execFile(c, ["--version"], { timeout: 2000 });
@@ -28,21 +41,109 @@ async function findPython(): Promise<string | null> {
   return null;
 }
 
-async function runPythonCli(args: string[], cwd: string): Promise<any> {
-  const py = await findPython();
-  if (!py) throw new Error("Python not found (python3 or python required on PATH)");
-  const cli = path.join(cwd, PY_CLI_REL);
-  try {
-    await vscode.workspace.fs.stat(vscode.Uri.file(cli));
-  } catch {
-    throw new Error(`CLI not found at ${cli}. Ensure tools/find_step.py exists in workspace root.`);
+/**
+ * Try to run the Python CLI from multiple candidate locations:
+ * 1) workspace-relative configured path (for each workspace folder)
+ * 2) configured absolute path (if provided)
+ * 3) bundled copy inside the extension
+ *
+ * @param args CLI args like ["--index"]
+ * @param cwd workspace cwd to run in
+ * @param context extension context (needed to resolve bundled path)
+ */
+async function runPythonCli(args: string[], cwd: string, context: vscode.ExtensionContext): Promise<any> {
+  const output = getOutputChannel(context);
+  output.appendLine(`runPythonCli: args=${JSON.stringify(args)}, cwd=${cwd}`);
+
+  const cfg = vscode.workspace.getConfiguration("behaveGherkin");
+  const configuredFindPath = cfg.get<string>("findStepPath") ?? DEFAULT_PY_CLI_REL;
+  const configuredPython = cfg.get<string>("pythonPath") ?? "";
+
+  output.appendLine(`Configured findStepPath: ${configuredFindPath}`);
+  output.appendLine(`Configured pythonPath: ${configuredPython}`);
+
+  const py = await findPython(configuredPython);
+  if (!py) {
+    const msg = "Python not found (python3 or python required on PATH) and behaveGherkin.pythonPath not configured correctly.";
+    output.appendLine(msg);
+    throw new Error(msg);
   }
-  try {
-    const { stdout } = await execFile(py, [cli, ...args], { cwd, timeout: 15000 });
-    return JSON.parse(stdout || "null");
-  } catch (err: any) {
-    throw new Error(err.stderr || err.message || String(err));
+  output.appendLine(`Using python executable: ${py}`);
+
+  // build candidate CLI paths (ordered)
+  const candidates: string[] = [];
+
+  // 1) workspace-relative copies (for each workspace)
+  const wsfolders = vscode.workspace.workspaceFolders || [];
+  for (const ws of wsfolders) {
+    // if configuredFindPath is absolute, it will be handled below
+    const candidate = path.join(ws.uri.fsPath, configuredFindPath);
+    candidates.push(candidate);
   }
+
+  // 2) if configuredFindPath is absolute, prefer it at the front
+  if (path.isAbsolute(configuredFindPath)) {
+    candidates.unshift(configuredFindPath);
+  }
+
+  // 3) bundled CLI inside the extension package
+  // context.asAbsolutePath resolves relative path inside the extension installation
+  const bundled = context.asAbsolutePath(path.posix.join("tools", "find_step.py"));
+  candidates.push(bundled);
+
+  output.appendLine("CLI candidate paths (in order):");
+  for (const c of candidates) output.appendLine(`  - ${c}`);
+
+  let lastErr: any = null;
+
+  for (const cliPath of candidates) {
+    try {
+      // quick check for existence
+      if (!fs.existsSync(cliPath)) {
+        output.appendLine(`CLI not found at: ${cliPath}`);
+        continue;
+      }
+
+      output.appendLine(`Attempting to run CLI at: ${cliPath}`);
+      const { stdout } = await execFile(py, [cliPath, ...args], { cwd, timeout: 20000 });
+
+      output.appendLine(`CLI stdout (first 400 chars): ${String(stdout).slice(0, 400)}`);
+
+      try {
+        const parsed = JSON.parse(stdout || "null");
+        output.appendLine(`CLI parsed JSON successfully from: ${cliPath}`);
+        return parsed;
+      } catch (jerr) {
+        output.appendLine(`Failed to parse JSON from CLI at ${cliPath}: ${jerr}`);
+        lastErr = jerr;
+        continue;
+      }
+    } catch (err: any) {
+      output.appendLine(`Error running CLI at ${cliPath}: ${err && err.message ? err.message : String(err)}`);
+      lastErr = err;
+      continue;
+    }
+  }
+
+  const tried = candidates.join("\n");
+  const help = `Index failed: CLI not found or failed to run. Tried:\n${tried}\nSet 'behaveGherkin.findStepPath' to the relative path of find_step.py in your workspace or ensure the CLI exists in your workspace.`;
+  output.appendLine(help);
+  if (lastErr) output.appendLine(`Last error: ${String(lastErr)}`);
+  throw new Error(help + (lastErr ? `\nLast error: ${String(lastErr)}` : ""));
+}
+
+// Output channel helper
+function getOutputChannel(context?: vscode.ExtensionContext): vscode.OutputChannel {
+ // Use a global channel stored on the extension context if available
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  const g: any = globalThis as any;
+  if (g.__behaveGherkinOutputChannel && g.__behaveGherkinOutputChannel.append) {
+    return g.__behaveGherkinOutputChannel;
+  }
+  const ch = vscode.window.createOutputChannel("Behave Gherkin");
+  g.__behaveGherkinOutputChannel = ch;
+  return ch;
 }
 
 function normalizeGherkin(line: string): string {
@@ -56,6 +157,9 @@ function normalizeGherkin(line: string): string {
 }
 
 export async function activate(context: vscode.ExtensionContext) {
+  const output = getOutputChannel(context);
+  context.subscriptions.push(output);
+
   const diagCollection = vscode.languages.createDiagnosticCollection("behave-gherkin");
   context.subscriptions.push(diagCollection);
 
@@ -63,11 +167,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
   async function reindex() {
     const ws = vscode.workspace.workspaceFolders?.[0];
-    if (!ws) return;
+    if (!ws) {
+      output.appendLine("reindex: no workspace open, skipping index.");
+      return;
+    }
     try {
-      const res = await runPythonCli(["--index"], ws.uri.fsPath);
+      output.appendLine("Starting workspace index...");
+      const res = await runPythonCli(["--index"], ws.uri.fsPath, context);
       stepIndex = Array.isArray(res) ? res : [];
+      output.appendLine(`Index built: ${stepIndex.length} step definitions found.`);
     } catch (e: any) {
+      output.appendLine("Index failed: " + (e.message || e));
       vscode.window.showErrorMessage("Index failed: " + (e.message || e));
       stepIndex = [];
     }
@@ -78,9 +188,10 @@ export async function activate(context: vscode.ExtensionContext) {
     const ws = vscode.workspace.workspaceFolders?.[0];
     if (!ws) return null;
     try {
-      const res = await runPythonCli(["--line", line], ws.uri.fsPath);
+      const res = await runPythonCli(["--line", line], ws.uri.fsPath, context);
       return res || null;
     } catch (e:any) {
+      output.appendLine("findStepForLine error: " + (e && (e.message || e)));
       console.error("findStepForLine error:", e);
       return null;
     }
@@ -90,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const ws = vscode.workspace.workspaceFolders?.[0];
     if (!ws) return;
     try {
-      const missing = await runPythonCli(["--undefined"], ws.uri.fsPath);
+      const missing = await runPythonCli(["--undefined"], ws.uri.fsPath, context);
       diagCollection.clear();
       if (Array.isArray(missing)) {
         const map = new Map<string, vscode.Diagnostic[]>();
@@ -108,6 +219,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
       }
     } catch (e:any) {
+      output.appendLine("Diagnostics update failed: " + (e && (e.message || e)));
       console.error("Diagnostics update failed:", e);
     }
   }
