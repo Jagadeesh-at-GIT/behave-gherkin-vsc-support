@@ -1,0 +1,14 @@
+# Node dependencies
+node_modules/
+
+# Compiled extension output
+out/
+
+# VS Code settings for local machine
+.vscode/
+
+# macOS junk
+.DS_Store
+
+# VSIX build output
+*.vsix

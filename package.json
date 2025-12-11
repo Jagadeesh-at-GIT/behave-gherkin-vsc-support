@@ -1,0 +1,52 @@
+{
+  "name": "behave-gherkin-vsc-support",
+  "displayName": "Behave Gherkin VSC Support",
+  "description": "VS Code support for Behave/Gherkin: navigate to step defs, highlight undefined steps, and create step skeletons.",
+  "version": "0.0.1",
+  "publisher": "your-publisher-id",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:behaveGherkin.goToStepDefinition",
+    "onCommand:behaveGherkin.createStepDefinition",
+    "onLanguage:feature"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "behaveGherkin.goToStepDefinition",
+        "title": "Behave: Go to Step Definition"
+      },
+      {
+        "command": "behaveGherkin.createStepDefinition",
+        "title": "Behave: Create Step Definition"
+      }
+    ],
+    "languages": [
+      {
+        "id": "feature",
+        "extensions": [
+          ".feature"
+        ],
+        "aliases": [
+          "Gherkin",
+          "feature"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.107.0",
+    "typescript": "^5.9.3"
+  }
+}
