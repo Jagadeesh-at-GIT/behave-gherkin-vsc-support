@@ -3,7 +3,7 @@
   "displayName": "Behave Gherkin VSC Support",
   "description": "VS Code support for Behave/Gherkin: navigate to step defs, highlight undefined steps, and create step skeletons.",
   "version": "0.0.1",
-  "publisher": "your-publisher-id",
+  "publisher": "JagadeeshKumarReddyObulareddy",
   "engines": {
     "vscode": "^1.107.0"
   },
