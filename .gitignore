@@ -12,3 +12,5 @@ out/
 
 # VSIX build output
 *.vsix
+
+test-workspace/

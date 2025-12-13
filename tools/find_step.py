@@ -16,8 +16,29 @@ Assumes workspace root = current working directory with:
 import sys, json, argparse, re
 from pathlib import Path
 
-STEPS_DIR = "features/steps"
-FEATURES_DIR = "features"
+def find_feature_files(root: Path):
+    return list(root.rglob("*.feature"))
+
+STEP_DECORATOR_RE = re.compile(
+    r'^\s*@(?P<kw>given|when|then|step|and)\s*\(',
+    re.I | re.M
+)
+
+def is_step_file(py_file: Path) -> bool:
+    try:
+        text = py_file.read_text(encoding="utf-8")
+    except Exception:
+        return False
+    return bool(STEP_DECORATOR_RE.search(text))
+
+def find_step_files(root: Path):
+    step_files = []
+    for py in root.rglob("*.py"):
+        if is_step_file(py):
+            step_files.append(py)
+    return step_files
+
+
 
 def normalize_gherkin(s: str) -> str:
     """
@@ -29,13 +50,21 @@ def normalize_gherkin(s: str) -> str:
     This makes it comparable to normalized patterns extracted from step defs.
     """
     s = s.strip()
-    s = re.sub(r'^(Feature|Scenario|Given|When|Then|And|But)\s+', '', s, flags=re.I)
+    s = re.sub(r'^(Feature|Scenario|Given|When|Then|And)\s+', '', s, flags=re.I)
     # replace quoted strings with placeholder
     s = re.sub(r'"[^"]*"', '"{}"', s)
+    s = re.sub(r"'[^']*'", "'{}'", s)
     # replace numbers (integers and floats) with placeholder
     s = re.sub(r'\b\d+(\.\d+)?\b', '{}', s)
-    # optional: replace UUIDs or long hex tokens if you want (commented)
-    # s = re.sub(r'\b[0-9a-fA-F-]{8,}\b', '{}', s)
+    # def repl_token(m):
+    #     token = m.group(0)
+    #     if token == "{}":
+    #         return token
+    #     if "_" in token or re.search(r'\d', token):
+    #         return "{}"
+    #     return token
+
+    # s = re.sub(r'\b[A-Za-z_][A-Za-z0-9_]*\b', repl_token, s)
     # collapse whitespace
     s = re.sub(r'\s+', ' ', s)
     return s.strip()
@@ -68,17 +97,20 @@ def normalize_pattern(pat: str) -> str:
 
 def build_index():
     root = Path.cwd()
-    step_root = root / STEPS_DIR
     res = []
-    if not step_root.exists():
-        return res
-    for py in step_root.rglob("*.py"):
+
+    for py in find_step_files(root):
         try:
             text = py.read_text(encoding="utf-8")
         except Exception:
             continue
+
         for i, line in enumerate(text.splitlines(), start=1):
-            m = re.match(r'^\s*@(?P<kw>given|when|then|step)\((?P<pat>.+)\)', line, flags=re.I)
+            m = re.match(
+                r'^\s*@(?P<kw>given|when|then|step|and)\((?P<pat>.+)\)',
+                line,
+                flags=re.I
+            )
             if m:
                 raw = m.group("pat").strip()
                 norm = normalize_pattern(raw)
@@ -89,10 +121,13 @@ def build_index():
                     "normalized": norm,
                     "keyword": m.group("kw").lower()
                 })
+
     return res
+
 
 def find_match(gherkin_line: str):
     targ = normalize_gherkin(gherkin_line)
+    print("Searching for normalized line:", targ)
     idx = build_index()
     for e in idx:
         if e["normalized"] == targ:
@@ -101,17 +136,16 @@ def find_match(gherkin_line: str):
 
 def list_undefined():
     root = Path.cwd()
-    feat_root = root / FEATURES_DIR
-    if not feat_root.exists():
-        return []
     idx = build_index()
     normalized_set = {e["normalized"] for e in idx}
     missing = []
-    for f in feat_root.rglob("*.feature"):
+
+    for f in find_feature_files(root):
         try:
             txt = f.read_text(encoding="utf-8")
         except Exception:
             continue
+
         for i, line in enumerate(txt.splitlines(), start=1):
             if re.search(r'\b(Given|When|Then|And|But)\b', line):
                 norm = normalize_gherkin(line)
@@ -122,6 +156,7 @@ def list_undefined():
                         "text": line.strip(),
                         "normalized": norm
                     })
+
     return missing
 
 def main():
