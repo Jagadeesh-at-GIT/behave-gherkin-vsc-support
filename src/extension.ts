@@ -414,60 +414,111 @@ def step_impl(context${params.length ? ", " + params.join(", ") : ""}):
   });
 
   // Semantic tokens: keywords, strings (params), comments, variables (parameters)
-  const tokenTypes = ["keyword", "string", "comment", "variable"];
+  const tokenTypes = ["keyword", "string", "comment", "variable","tag", "featureKeyword", "scenarioKeyword", "stepKeyword"];
   const legend = new vscode.SemanticTokensLegend(tokenTypes, []);
-  context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ language: "feature" }, new (class implements vscode.DocumentSemanticTokensProvider {
-    async provideDocumentSemanticTokens(document: vscode.TextDocument): Promise<vscode.SemanticTokens> {
-      const builder = new vscode.SemanticTokensBuilder(legend);
-      for (let i = 0; i < document.lineCount; i++) {
-        const line = document.lineAt(i).text;
-        // comments: lines starting with # or whitespace + #
-        const commentMatch = /^\s*#(.*)/.exec(line);
-        if (commentMatch) {
-          // whole line as comment
-          builder.push(i, 0, line.length, tokenTypes.indexOf("comment"), 0);
-          continue;
-        }
-        // Feature / Scenario (headline tokens)
-        const head = /^\s*(Feature|Scenario| Scenario Outline)\b/i.exec(line);
-        if (head) {
-          const s = line.indexOf(head[1]);
-          builder.push(i, s, head[1].length, tokenTypes.indexOf("keyword"), 0);
-        }
-        // Given / When / Then / And / But keywords
-        const kw = /^\s*(Given|When|Then|And|But)\b/i.exec(line);
-        if (kw) {
-          const s = line.indexOf(kw[1]);
-          builder.push(i, s, kw[1].length, tokenTypes.indexOf("keyword"), 0);
-        }
-        // mark quoted strings as string tokens (parameters)
-        for (const m of Array.from(line.matchAll(/"[^"]*"/g))) {
-          const s = m.index ?? -1;
-          if (s >= 0) builder.push(i, s, m[0].length, tokenTypes.indexOf("string"), 0);
-        }
-        // mark numeric or unquoted parameter tokens as variable tokens
-        for (const m of Array.from(line.matchAll(/\b\d+(\.\d+)?\b/g))) {
-          const s = m.index ?? -1;
-          if (s >= 0) builder.push(i, s, m[0].length, tokenTypes.indexOf("variable"), 0);
-        }
-        // also mark variable-like unquoted tokens (snake_case etc.) as variable tokens, but avoid keywords
-        for (const m of Array.from(line.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g))) {
-          const word = m[0];
-          const s = m.index ?? -1;
-          if (s < 0) continue;
-          // skip keywords and common words
-          const lc = word.toLowerCase();
-          if (["feature","scenario","given","when","then","and","scenario outline"].includes(lc)) continue;
-          // mark as variable only if it contains underscore or a digit
-          if (word.includes("_") || /[0-9]/.test(word)) {
-            builder.push(i, s, word.length, tokenTypes.indexOf("variable"), 0);
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: "feature" },
+      new (class implements vscode.DocumentSemanticTokensProvider {
+        async provideDocumentSemanticTokens(
+          document: vscode.TextDocument
+        ): Promise<vscode.SemanticTokens> {
+          const builder = new vscode.SemanticTokensBuilder(legend);
+  
+          const tagToken       = tokenTypes.indexOf("tag");
+          const featureToken   = tokenTypes.indexOf("featureKeyword");
+          const scenarioToken  = tokenTypes.indexOf("scenarioKeyword");
+          const stepToken      = tokenTypes.indexOf("stepKeyword");
+          const stringToken    = tokenTypes.indexOf("string");
+          const variableToken  = tokenTypes.indexOf("variable");
+          const commentToken   = tokenTypes.indexOf("comment");
+  
+          for (let i = 0; i < document.lineCount; i++) {
+            const line = document.lineAt(i).text;
+  
+            // -------- TAGS (e.g. @Smoke @API-TC-100)
+            for (const m of line.matchAll(/@[A-Za-z0-9_\-]+/g)) {
+              if (m.index !== undefined) {
+                builder.push(i, m.index, m[0].length, tagToken, 0);
+              }
+            }
+  
+            // -------- COMMENTS (# something)
+            const commentMatch = /^\s*#/.exec(line);
+            if (commentMatch) {
+              builder.push(i, 0, line.length, commentToken, 0);
+              continue;
+            }
+  
+            // -------- FEATURE
+            const featureMatch = /^\s*(Feature)\b/i.exec(line);
+            if (featureMatch) {
+              const s = line.indexOf(featureMatch[1]);
+              builder.push(i, s, featureMatch[1].length, featureToken, 0);
+              continue;
+            }
+  
+            // -------- SCENARIO / SCENARIO OUTLINE
+            const scenarioMatch = /^\s*(Scenario Outline|Scenario)\b/i.exec(line);
+            if (scenarioMatch) {
+              const s = line.indexOf(scenarioMatch[1]);
+              builder.push(i, s, scenarioMatch[1].length, scenarioToken, 0);
+              continue;
+            }
+  
+            // -------- STEP KEYWORDS
+            const stepMatch = /^\s*(Given|When|Then|And|But)\b/i.exec(line);
+            if (stepMatch) {
+              const s = line.indexOf(stepMatch[1]);
+              builder.push(i, s, stepMatch[1].length, stepToken, 0);
+            }
+  
+            // -------- QUOTED STRINGS ("value")
+            for (const m of line.matchAll(/"[^"]*"/g)) {
+              if (m.index !== undefined) {
+                builder.push(i, m.index, m[0].length, stringToken, 0);
+              }
+            }
+  
+            // -------- NUMBERS
+            for (const m of line.matchAll(/\b\d+(\.\d+)?\b/g)) {
+              if (m.index !== undefined) {
+                builder.push(i, m.index, m[0].length, variableToken, 0);
+              }
+            }
+  
+            // -------- VARIABLE-LIKE TOKENS (snake_case or contains digits)
+            for (const m of line.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
+              const word = m[0];
+              const idx = m.index ?? -1;
+              if (idx < 0) continue;
+  
+              const skip = [
+                "feature",
+                "scenario",
+                "scenario outline",
+                "given",
+                "when",
+                "then",
+                "and",
+                "but",
+              ];
+  
+              if (skip.includes(word.toLowerCase())) continue;
+  
+              if (word.includes("_") || /\d/.test(word)) {
+                builder.push(i, idx, word.length, variableToken, 0);
+              }
+            }
           }
+  
+          return builder.build();
         }
-      }
-      return builder.build();
-    }
-  })(), legend));
-
+      })(),
+      legend
+    )
+  );
+  
   // initial doc diagnostics for currently open docs
   for (const doc of vscode.workspace.textDocuments) {
     if (GHERKIN_IDS.includes(doc.languageId)) updateDocDiagnostics(doc);

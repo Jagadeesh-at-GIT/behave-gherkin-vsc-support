@@ -2,7 +2,7 @@
   "name": "behave-gherkin-vsc-support",
   "displayName": "Behave Gherkin VSC Support",
   "description": "VS Code support for Behave/Gherkin: navigate to step defs, highlight undefined steps, and create step skeletons.",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "JagadeeshKumarReddyObulareddy",
   "engines": {
     "vscode": "^1.96.0"
@@ -52,6 +52,24 @@
           "default": "tools/find_step.py",
           "description": "Relative path to the find_step.py CLI inside the workspace. If the file is not present at this path, the extension will attempt to run a bundled CLI."
         }
+      }
+    },
+    "semanticTokenColors": {
+      "tag": {
+        "foreground": "#C586C0",
+        "fontStyle": "bold"
+      },
+      "featureKeyword": {
+        "foreground": "#4FC1FF",
+        "fontStyle": "bold"
+      },
+      "scenarioKeyword": {
+        "foreground": "#4EC9B0",
+        "fontStyle": "bold"
+      },
+      "stepKeyword": {
+        "foreground": "#CE9178",
+        "fontStyle": "bold"
       }
     }
   },
