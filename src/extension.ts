@@ -51,7 +51,7 @@ function normalizeGherkinTS(line: string): string {
   s = s.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (m) => {
     if (m === "{}") return m;
     // if token contains underscore or digit, treat as param placeholder
-    if (/[0-9]/.test(m) || m.includes("_")) return "{}";
+    // if (/[0-9]/.test(m) || m.includes("_")) return "{}";
     // otherwise keep the token (likely normal English / keyword)
     return m;
   });
