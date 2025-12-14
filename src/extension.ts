@@ -414,11 +414,11 @@ def step_impl(context${params.length ? ", " + params.join(", ") : ""}):
   });
 
   // Semantic tokens: keywords, strings (params), comments, variables (parameters)
-  const tokenTypes = ["keyword", "string", "comment", "variable","tag", "featureKeyword", "scenarioKeyword", "stepKeyword"];
+  const tokenTypes = ["tag", "featureKeyword", "scenarioKeyword", "stepKeyword", "string", "variable", "comment"];
   const legend = new vscode.SemanticTokensLegend(tokenTypes, []);
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
-      { language: "feature" },
+      [{ language: "feature" }, { language: "gherkin" }],
       new (class implements vscode.DocumentSemanticTokensProvider {
         async provideDocumentSemanticTokens(
           document: vscode.TextDocument
@@ -481,7 +481,7 @@ def step_impl(context${params.length ? ", " + params.join(", ") : ""}):
             }
   
             // -------- NUMBERS
-            for (const m of line.matchAll(/\b\d+(\.\d+)?\b/g)) {
+            for (const m of line.matchAll(/(?<![A-Za-z0-9_-])\d+(\.\d+)?(?![A-Za-z0-9_-])/g)) {
               if (m.index !== undefined) {
                 builder.push(i, m.index, m[0].length, variableToken, 0);
               }

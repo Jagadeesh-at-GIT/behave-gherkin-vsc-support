@@ -2,7 +2,7 @@
   "name": "behave-gherkin-vsc-support",
   "displayName": "Behave Gherkin VSC Support",
   "description": "VS Code support for Behave/Gherkin: navigate to step defs, highlight undefined steps, and create step skeletons.",
-  "version": "0.0.9",
+  "version": "0.0.14",
   "publisher": "JagadeeshKumarReddyObulareddy",
   "engines": {
     "vscode": "^1.96.0"
@@ -35,7 +35,8 @@
         ],
         "aliases": [
           "Gherkin",
-          "feature"
+          "feature",
+          "gherkin"
         ]
       }
     ],
@@ -54,6 +55,42 @@
         }
       }
     },
+    "semanticTokens": {
+      "tokenTypes": [
+        "tag",
+        "featureKeyword",
+        "scenarioKeyword",
+        "stepKeyword",
+        "string",
+        "variable",
+        "comment"
+      ]
+    },
+    "semanticTokenScopes": [
+      {
+        "tag": [
+          "entity.name.tag"
+        ],
+        "featureKeyword": [
+          "keyword.control.feature"
+        ],
+        "scenarioKeyword": [
+          "keyword.control.scenario"
+        ],
+        "stepKeyword": [
+          "keyword.control.step"
+        ],
+        "string": [
+          "string.quoted"
+        ],
+        "variable": [
+          "variable.other"
+        ],
+        "comment": [
+          "comment.line"
+        ]
+      }
+    ],
     "semanticTokenColors": {
       "tag": {
         "foreground": "#C586C0",
@@ -70,6 +107,16 @@
       "stepKeyword": {
         "foreground": "#CE9178",
         "fontStyle": "bold"
+      },
+      "string": {
+        "foreground": "#D69D85"
+      },
+      "variable": {
+        "foreground": "#9CDCFE"
+      },
+      "comment": {
+        "foreground": "#6A9955",
+        "fontStyle": "italic"
       }
     }
   },
