@@ -488,28 +488,28 @@ def step_impl(context${params.length ? ", " + params.join(", ") : ""}):
             }
   
             // -------- VARIABLE-LIKE TOKENS (snake_case or contains digits)
-            for (const m of line.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
-              const word = m[0];
-              const idx = m.index ?? -1;
-              if (idx < 0) continue;
+            // for (const m of line.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
+            //   const word = m[0];
+            //   const idx = m.index ?? -1;
+            //   if (idx < 0) continue;
   
-              const skip = [
-                "feature",
-                "scenario",
-                "scenario outline",
-                "given",
-                "when",
-                "then",
-                "and",
-                "but",
-              ];
+            //   const skip = [
+            //     "feature",
+            //     "scenario",
+            //     "scenario outline",
+            //     "given",
+            //     "when",
+            //     "then",
+            //     "and",
+            //     "but",
+            //   ];
   
-              if (skip.includes(word.toLowerCase())) continue;
+            //   if (skip.includes(word.toLowerCase())) continue;
   
-              if (word.includes("_") || /\d/.test(word)) {
-                builder.push(i, idx, word.length, variableToken, 0);
-              }
-            }
+            //   if (word.includes("_") || /\d/.test(word)) {
+            //     builder.push(i, idx, word.length, variableToken, 0);
+            //   }
+            // }
           }
   
           return builder.build();
